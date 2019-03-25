@@ -1,0 +1,252 @@
+---
+output:
+  pdf_document: 
+    latex_engine: xelatex
+  html_document: default
+---
+# Homework 2
+##Conceptual
+
+## 7
+7. Suppose that we wish to predict whether a given stock will issue a dividend this year (“Yes” or “No”) based on $X$, last year’s percent profit.We examine a large number of companies and discover that the
+mean value of $X$ for companies that issued a dividend was $\bar X$ = 10, while the mean for those that didn’t was $\bar X$  = 0. In addition, the variance of X for these two sets of companies was  $\hat {\sigma}^2$= 36. Finally, 80% of companies issued dividends. Assuming that X follows a normal
+distribution, predict the probability that a company will issue a dividend this year given that its percentage profit was $X = 4$ last year.
+
+*Note: Recall that the density function for a normal random variable is $f(x)= \frac{1}{\sqrt{2 \pi {\sigma}^2}} e^{-(x-\mu)^2/{2{\sigma}^2}}$. You will need to use Bayes’ theorem*
+
+**Answer:** 
+\newline set 1 as the company issued dividends and 0 as company does not issued dividends
+$$\hat {\sigma}_0 = \hat {\sigma}_1 = 6$$
+$$ f_0(4)= \frac{1}{\sqrt{2 \pi {\sigma}_0^2}}exp(-(x-\mu_0)^2/{2{\sigma}_0^2}) = \frac{1}{\sqrt{2 \pi \times 6^2}}exp(-(4)^2/({2* 6^2})) =  0.0532$$
+$$f_1(4)= \frac{1}{\sqrt{2 \pi {\sigma}_1^2}}exp(-(x-\mu_1)^2/{2{\sigma}_1^2}) = \frac{1}{\sqrt{2 \pi \times 6^2}}exp(-(4-10)^2/({2* 6^2})) =  0.0403$$
+so:
+$$Pr(Y=1|X=4) = \frac{\pi_1 \times f_1(4)}{\pi_0 \times f_0(4)+ \pi_1 \times f_1(4)} = \frac{0.8 \times 0.0403}{0.8 \times 0.0403+ 0.2 \times 0.0532} = 0.752$$
+The probability that a company will issue a dividend this year given that its percentage profit was $X = 4$ last year is 0.752
+```{r}
+a = 1/sqrt(pi*2*36) * exp(-16/72)
+a
+b = 1/sqrt(pi*2*36) * exp(-36/72)
+b
+c = 0.8*b/(0.8*b+0.2*a)
+c
+```
+
+
+## 3
+10. This question should be answered using the \textcolor{red}{Weekly} data set, which is part of the ISLR package. This data is similar in nature to the \textcolor{red}{Smarket} data from this chapter’s lab, except that it contains 1, 089 weekly returns for 21 years, from the beginning of 1990 to the end of 2010.
+(a) Produce some numerical and graphical summaries of the \textcolor{red}{Weekly} data. Do there appear to be any patterns?
+```{r}
+library(ISLR)
+summary(Weekly)
+```
+```{r}
+pairs(Weekly)
+```
+
+```{r}
+cor(Weekly[, -9])
+```
+```{r}
+attach(Weekly)
+plot(Volume)
+```
+The only substantial correlation is between “Year” and “Volume”. No other patterns are discernible.
+
+(b) Use the full data set to perform a logistic regression with \textcolor{red}{Direction} as the response and the five lag variables plus \textcolor{red}{Volume} as predictors. Use the summary function to print the results. Do any of the predictors appear to be statistically significant? If so,which ones?
+```{r}
+glm.fits10=glm(Direction ~ Lag1+Lag2+Lag3+Lag4+Lag5+Volume, data=Weekly ,family =binomial )
+summary (glm.fits10)
+```
+Lag 2 appears to be the only predictor that is statistically significantwith a 0.03 P-value < 0.05
+
+(c) Compute the confusion matrix and overall fraction of correct predictions. Explain what the confusion matrix is telling you about the types of mistakes made by logistic regression.
+```{r}
+glm.probs = predict(glm.fits10,type = "response")
+glm.pred=rep ("Down", 1089)
+glm.pred[glm.probs >.5]= "Up"
+table(glm.pred, Direction)
+```
+
+```{r}
+mean(glm.pred== Direction )
+```
+The percentage of correct predictions on the training data is 56.1%. We made Type I error by logistic regression model with a false negative rate = $\frac{430}{430+54} = 88.8\%$, which means logistic regression wrongly predict that the market would go up when the market actually goes down for 88.8% of the time. Therefore it's better to increase the threshold to avoid over overoptimism.
+```{r}
+430/(430+54)
+```
+(d) Now fit the logistic regression model using a training data period from 1990 to 2008, with Lag2 as the only predictor. Compute the confusion matrix and the overall fraction of correct predictions for the held out data (that is, the data from 2009 and 2010).
+```{r}
+train = (Year < 2009)
+Weekly.0910 = Weekly[!train, ]
+glm.fit102 = glm(Direction ~ Lag2, data = Weekly, family = binomial, subset = train)
+glm.probs2 = predict(glm.fit102, Weekly.0910, type = "response")
+glm.pred2 = rep("Down", length(glm.probs2))
+glm.pred2[glm.probs2 > 0.5] = "Up"
+Direction.0910 = Direction[!train]
+table(glm.pred2, Direction.0910)
+```
+```{r}
+mean(glm.pred2 == Direction.0910)
+```
+In this case, the percentage of correct predictions on the test data is $\frac{9+56}{9+56+5+34} = 62.5\%$. We could also say that for weeks when the market goes up, the LR model is right $\frac{56}{56+5} = 91.8\%$ of the time. For weeks when the market goes down, the LR model is right only $\frac{9}{34+9} = 20.9\%$ of the time.
+
+(e) Repeat (d) using LDA.
+```{r}
+library (MASS)
+train = (Year < 2009)
+Weekly.0910 = Weekly[!train, ]
+lda.fit = lda(Direction ~Lag2, data = Weekly, subset = train)
+lda.fit
+
+```
+```{r}
+lda.pred = predict(lda.fit, Weekly.0910)
+table(lda.pred$class, Direction.0910)
+```
+```{r}
+mean(lda.pred$class == Direction.0910)
+```
+These results from LDA are very close to those obtained with the logistic regression model.
+
+(f) Repeat (d) using QDA.
+```{r}
+library (MASS)
+qda.fit=qda(Direction ~ Lag2, data = Weekly ,subset =train)
+qda.fit
+```
+```{r}
+qda.pred = predict(qda.fit, Weekly.0910)
+table(qda.pred$class, Direction.0910)
+```
+
+```{r}
+mean(qda.pred$class == Direction.0910)
+```
+In this case, QDA may be a bad choice. The percentage of correct predictions on the test data is 58.65%, while QDA predicts the market would goes up all the time.
+
+(g) Repeat (d) using KNN with K = 1.
+```{r}
+library (class)
+train.X=as.matrix(Lag2[train])
+test.X=as.matrix(Lag2[!train])
+train.Direction = Direction[train]
+set.seed (1)
+knn.pred=knn(train.X, test.X, train.Direction, k=1)
+table(knn.pred,Direction.0910)
+```
+
+```{r}
+mean(knn.pred == Direction.0910)
+```
+For KNN, the percentage of correct predictions on the test data is 50%; for weeks when the market goes up, the model is right 50.82% of the time. For weeks when the market goes down, the model is right only 48.84% of the time. Compard to LR and LDA, the type I error decreases at the expense of type II error.
+(h) Which of these methods appears to provide the best results on this data?
+comparing the test error rates, logistic regression and LDA have the minimum error rates, followed by QDA and KNN.
+
+## 11
+11. In this problem, you will develop a model to predict whether a given car gets high or low gas mileage based on the \textcolor{red}{Auto} data set.
+
+(a) Create a binary variable, \textcolor{red}{mpg01}, that contains a 1 if \textcolor{red}{mpg} contains a value above its median, and a 0 if \textcolor{red}{mpg} contains a value below its median. You can compute the median using the median() function. Note you may find it helpful to use the data.frame() function to create a single data set containing both mpg01 and the other Auto variables.
+```{r}
+library(ISLR)
+attach(Auto)
+library(dplyr)
+Auto = Auto %>%
+  mutate(mpg01 = ifelse(mpg>median(mpg),1,0))
+
+# OR
+mpg01 = rep(0, length(mpg))
+mpg01[mpg > median(mpg)] = 1
+Auto = data.frame(Auto, mpg01)
+```
+
+(b) Explore the data graphically in order to investigate the association between \textcolor{red}{mpg01} and the other features. Which of the other features seem most likely to be useful in predicting \textcolor{red}{mpg01}? Scatterplots and boxplots may be useful tools to answer this question. Describe your findings.
+```{r}
+summary(Auto)
+pairs(Auto) # doesn't work well since mpg01 is binary
+cor(Auto[, -9])
+```
+
+```{r}
+boxplot(cylinders ~ mpg01, data = Auto, main = "cylinders vs mpg01")
+boxplot(displacement ~ mpg01, data = Auto, main = "displacement vs mpg01")
+boxplot(horsepower ~ mpg01, data = Auto, main = "horsepower vs mpg01")
+boxplot(weight ~ mpg01, data = Auto, main = "weight vs mpg01")
+boxplot(acceleration ~ mpg01, data = Auto, main = "acceleration vs mpg01")
+boxplot(year ~ mpg01, data = Auto, main = "year vs mpg01")
+boxplot(origin ~ mpg01, data = Auto, main = "origin vs mpg01")
+
+
+```
+We can assume that mpg01 is anti-correlated with cylinders, displacement, horsepower and weight.
+
+(c) Split the data into a training set and a test set.
+```{r}
+Auto.train = Auto[1:200, ]
+Auto.test = Auto[-(1:200), ]
+mpg01.test = mpg01[-(1:200)]
+```
+
+(d) Perform LDA on the training data in order to predict mpg01 using the variables that seemed most associated with mpg01 in (b). What is the test error of the model obtained?
+```{r}
+lda.fit11 = lda(mpg01 ~ cylinders+displacement +horsepower+weight, data = Auto.train)
+lda.fit11
+lda.pred11 = predict(lda.fit11, Auto.test)
+table(lda.pred11$class, mpg01.test)
+mean(lda.pred11$class != mpg01.test)
+```
+the test error rate of the LDA model is 10.42%.
+
+(e) Perform QDA on the training data in order to predict mpg01 using the variables that seemed most associated with mpg01 in (b). What is the test error of the model obtained?
+```{r}
+qda.fit11 = qda(mpg01 ~ cylinders + displacement +horsepower+weight, data = Auto.train)
+qda.fit11
+qda.pred11 = predict(qda.fit11, Auto.test)
+table(qda.pred11$class, mpg01.test)
+mean(qda.pred11$class != mpg01.test)
+```
+The test error rate of the QDA model is 13.54%.
+
+(f) Perform logistic regression on the training data in order to predict mpg01 using the variables that seemed most associated with mpg01 in (b). What is the test error of the model obtained?
+```{r}
+glm.fit11 = glm(mpg01 ~ cylinders + displacement +horsepower+weight, data = Auto.train, family = binomial)
+summary(glm.fit11)
+glm.probs11 = predict(glm.fit11, Auto.test, type = "response")
+glm.pred11 = rep(0, length(glm.probs11))
+glm.pred11[glm.probs11 > 0.5] = 1
+table(glm.pred11, mpg01.test)
+mean(glm.pred11 != mpg01.test)
+```
+The test error rate of the Logistic Regressionmodel is 20.31%.
+
+(g) Perform KNN on the training data, with several values of K, in order to predict mpg01. Use only the variables that seemed most associated with mpg01 in (b). What test errors do you obtain? Which value of K seems to perform the best on this data set?
+
+```{r}
+train.X <- cbind(cylinders, displacement, horsepower, weight)[1:200, ]
+test.X <- cbind(cylinders, displacement, horsepower, weight)[-(1:200), ]
+mpg01.train <- mpg01[1:200]
+set.seed(1)
+pred.knn = knn(train.X, test.X, mpg01.train, k = 1)
+table(pred.knn, mpg01.test)
+mean(pred.knn != mpg01.test)
+
+```
+K=1, 16.14% test error rate.
+```{r}
+findbestk = function(k){
+  set.seed(1)
+  error = rep(0, k)
+  for (i in (1:k)){
+    pred.knn = knn(train.X, test.X, mpg01.train, k = i)
+    error[i] = mean(pred.knn != mpg01.test)
+    }
+  return(error)
+}
+error1 = findbestk(100)
+min(error1)
+which.min(error1)
+
+error2 = findbestk(150)
+min(error2)
+which.min(error2)
+```
+K<100, When K = 21, it seems to perform the best on this dataset with error rate = 13.54%
